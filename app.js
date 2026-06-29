@@ -2,14 +2,21 @@ import {
   buildTodayDecision,
   calculateNextFitness,
   calculateTrainingLoad,
+  DEFAULT_FITNESS,
+  getInitialFitness,
   getLatestFitness,
   migrateEntriesToRecursiveState,
 } from "./engine.js";
 
 const STORAGE_KEY = "waist-loss-engine.entries.v1";
+const SEED_STORAGE_KEY = "waist-loss-engine.seed.v1";
 
 const elements = {
   form: document.querySelector("#entry-form"),
+  seedForm: document.querySelector("#seed-form"),
+  seedCtl: document.querySelector("#seed-ctl"),
+  seedAtl: document.querySelector("#seed-atl"),
+  seedTsb: document.querySelector("#seed-tsb"),
   duration: document.querySelector("#duration"),
   avgHr: document.querySelector("#avg-hr"),
   type: document.querySelector("#type"),
@@ -52,6 +59,26 @@ function writeEntries(entries) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
 }
 
+function readSeed() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(SEED_STORAGE_KEY) || "{}");
+    return getInitialFitness(parsed);
+  } catch {
+    console.warn("[WLE state:seed-read] localStorage parse failed. Using default seed.");
+    return getInitialFitness();
+  }
+}
+
+function writeSeed(seed) {
+  console.log("[WLE state:seed-write]", {
+    storageKey: SEED_STORAGE_KEY,
+    ctl: seed.ctl,
+    atl: seed.atl,
+    tsb: seed.tsb,
+  });
+  localStorage.setItem(SEED_STORAGE_KEY, JSON.stringify(seed));
+}
+
 function formatNumber(value) {
   return value.toFixed(1);
 }
@@ -63,12 +90,33 @@ function formatDate(isoDate) {
   }).format(new Date(isoDate));
 }
 
-function renderToday(entries) {
-  const decision = buildTodayDecision(entries);
+function renderSeed(seed) {
+  elements.seedCtl.value = formatNumber(seed.ctl);
+  elements.seedAtl.value = formatNumber(seed.atl);
+  elements.seedTsb.textContent = formatNumber(seed.tsb);
+}
+
+function updateSeedPreview() {
+  const ctl = Number(elements.seedCtl.value);
+  const atl = Number(elements.seedAtl.value);
+
+  if (!Number.isFinite(ctl) || !Number.isFinite(atl)) {
+    elements.seedTsb.textContent = "0.0";
+    return;
+  }
+
+  elements.seedTsb.textContent = formatNumber(ctl - atl);
+}
+
+function renderToday(entries, seed) {
+  const decision = buildTodayDecision(entries, seed);
   const recommendation = decision.recommendation;
 
   console.log("[WLE state:decision]", {
     entries: entries.length,
+    seedCtl: seed.ctl,
+    seedAtl: seed.atl,
+    seedTsb: seed.tsb,
     ctl: decision.ctl,
     atl: decision.atl,
     tsb: decision.tsb,
@@ -116,7 +164,13 @@ function renderHistory(entries) {
   }
 }
 
-function traceState(entries) {
+function traceState(entries, seed) {
+  console.log("[WLE state:seed]", {
+    ctl: seed.ctl,
+    atl: seed.atl,
+    tsb: seed.tsb,
+    isDefault: seed.ctl === DEFAULT_FITNESS && seed.atl === DEFAULT_FITNESS,
+  });
   console.table(
     entries.map((entry, index) => ({
       index,
@@ -133,16 +187,18 @@ function traceState(entries) {
 }
 
 function render() {
+  const seed = readSeed();
   let entries = readEntries();
-  const migration = migrateEntriesToRecursiveState(entries);
+  const migration = migrateEntriesToRecursiveState(entries, seed);
 
   if (migration.changed) {
     entries = migration.entries;
     writeEntries(entries);
   }
 
-  traceState(entries);
-  renderToday(entries);
+  traceState(entries, seed);
+  renderSeed(seed);
+  renderToday(entries, seed);
   renderHistory(entries);
 }
 
@@ -156,14 +212,15 @@ function handleSubmit(event) {
     return;
   }
 
+  const seed = readSeed();
   let entries = readEntries();
-  const migration = migrateEntriesToRecursiveState(entries);
+  const migration = migrateEntriesToRecursiveState(entries, seed);
 
   if (migration.changed) {
     entries = migration.entries;
   }
 
-  const previousFitness = getLatestFitness(entries);
+  const previousFitness = getLatestFitness(entries, seed);
   const draftEntry = {
     id: crypto.randomUUID(),
     date: new Date().toISOString(),
@@ -196,5 +253,29 @@ function handleSubmit(event) {
   render();
 }
 
+function handleSeedSubmit(event) {
+  event.preventDefault();
+
+  const ctl = Number(elements.seedCtl.value);
+  const atl = Number(elements.seedAtl.value);
+
+  if (!Number.isFinite(ctl) || !Number.isFinite(atl)) {
+    return;
+  }
+
+  const seed = getInitialFitness({ ctl, atl });
+  const entries = readEntries();
+  const recalculated = migrateEntriesToRecursiveState(entries, seed, {
+    forceRecalculate: true,
+  });
+
+  writeSeed(seed);
+  writeEntries(recalculated.entries);
+  render();
+}
+
 elements.form.addEventListener("submit", handleSubmit);
+elements.seedForm.addEventListener("submit", handleSeedSubmit);
+elements.seedCtl.addEventListener("input", updateSeedPreview);
+elements.seedAtl.addEventListener("input", updateSeedPreview);
 render();

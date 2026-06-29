@@ -1,4 +1,4 @@
-const DEFAULT_FITNESS = 25;
+export const DEFAULT_FITNESS = 25;
 const CTL_DAYS = 42;
 const ATL_DAYS = 7;
 
@@ -18,11 +18,14 @@ export function calculateEma(previousValue, currentValue, periodDays) {
   return previousValue + alpha * (currentValue - previousValue);
 }
 
-export function getInitialFitness() {
+export function getInitialFitness(seed = {}) {
+  const ctl = Number.isFinite(Number(seed.ctl)) ? Number(seed.ctl) : DEFAULT_FITNESS;
+  const atl = Number.isFinite(Number(seed.atl)) ? Number(seed.atl) : DEFAULT_FITNESS;
+
   return {
-    ctl: DEFAULT_FITNESS,
-    atl: DEFAULT_FITNESS,
-    tsb: 0,
+    ctl,
+    atl,
+    tsb: ctl - atl,
   };
 }
 
@@ -41,7 +44,7 @@ export function calculateNextFitness(previousFitness, entry) {
   };
 }
 
-export function getLatestFitness(entries) {
+export function getLatestFitness(entries, seed) {
   const latestEntry = entries.at(-1);
 
   if (
@@ -57,12 +60,13 @@ export function getLatestFitness(entries) {
     };
   }
 
-  return getInitialFitness();
+  return getInitialFitness(seed);
 }
 
-export function migrateEntriesToRecursiveState(entries) {
+export function migrateEntriesToRecursiveState(entries, seed, options = {}) {
   let changed = false;
-  let previousFitness = getInitialFitness();
+  let previousFitness = getInitialFitness(seed);
+  const forceRecalculate = options.forceRecalculate === true;
 
   const migratedEntries = entries.map((entry, index) => {
     const hasStoredState =
@@ -71,7 +75,7 @@ export function migrateEntriesToRecursiveState(entries) {
       Number.isFinite(Number(entry.atl)) &&
       Number.isFinite(Number(entry.tsb));
 
-    if (hasStoredState) {
+    if (hasStoredState && !forceRecalculate) {
       previousFitness = {
         ctl: Number(entry.ctl),
         atl: Number(entry.atl),
@@ -88,9 +92,11 @@ export function migrateEntriesToRecursiveState(entries) {
     };
     changed = true;
 
-    console.log("[WLE state:migrate]", {
+    console.log(forceRecalculate ? "[WLE state:recalculate]" : "[WLE state:migrate]", {
       index,
       date: entry.date,
+      seedCtl: index === 0 ? getInitialFitness(seed).ctl : undefined,
+      seedAtl: index === 0 ? getInitialFitness(seed).atl : undefined,
       dailyLoad: nextFitness.trainingLoad,
       ctl: nextFitness.ctl,
       atl: nextFitness.atl,
@@ -151,8 +157,8 @@ export function getRecommendation(tsb) {
   };
 }
 
-export function buildTodayDecision(entries) {
-  const fitness = getLatestFitness(entries);
+export function buildTodayDecision(entries, seed) {
+  const fitness = getLatestFitness(entries, seed);
 
   return {
     ...fitness,

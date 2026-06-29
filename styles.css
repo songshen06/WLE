@@ -140,7 +140,8 @@ h2 {
 }
 
 .score-grid div,
-.prescription div {
+.prescription div,
+.seed-tsb {
   border: 1px solid var(--line);
   border-radius: 6px;
   background: var(--panel-strong);
@@ -149,7 +150,8 @@ h2 {
 
 .score-grid span,
 .prescription span,
-label span {
+label span,
+.seed-tsb span {
   display: block;
   margin-bottom: 8px;
   color: var(--muted);
@@ -245,6 +247,15 @@ button {
 
 button:hover {
   filter: brightness(1.08);
+}
+
+.seed-tsb {
+  margin-bottom: 14px;
+}
+
+.seed-tsb strong {
+  display: block;
+  font-size: 1.35rem;
 }
 
 .history-list {

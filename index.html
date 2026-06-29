@@ -92,6 +92,30 @@
           <button type="submit">Save load</button>
         </form>
 
+        <form class="panel seed-panel" id="seed-form">
+          <div class="section-heading">
+            <p class="eyebrow">Initial state</p>
+            <h2>Align with phone</h2>
+          </div>
+
+          <label>
+            Initial CTL
+            <input id="seed-ctl" name="seedCtl" type="number" step="0.1" inputmode="decimal" required />
+          </label>
+
+          <label>
+            Initial ATL
+            <input id="seed-atl" name="seedAtl" type="number" step="0.1" inputmode="decimal" required />
+          </label>
+
+          <div class="seed-tsb">
+            <span>Initial TSB</span>
+            <strong id="seed-tsb">0.0</strong>
+          </div>
+
+          <button type="submit">Save initial state</button>
+        </form>
+
         <section class="panel history-panel" aria-labelledby="history-title">
           <div class="section-heading">
             <p class="eyebrow">History</p>
