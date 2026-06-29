@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="WAIST LOSS ENGINE: daily training decisions from CTL, ATL, and TSB."
+    />
+    <title>WAIST LOSS ENGINE</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="app-header">
+        <p class="eyebrow">Daily decision engine</p>
+        <h1>WAIST LOSS ENGINE</h1>
+      </header>
+
+      <section class="today-card" id="today-card" data-tone="main" aria-labelledby="recommendation-title">
+        <div class="today-topline">
+          <div>
+            <p class="eyebrow">Today</p>
+            <h2 id="recommendation-title">Fat Loss Zone (Main)</h2>
+          </div>
+          <div class="action-pill" id="action">TRAIN</div>
+        </div>
+
+        <div class="score-grid" aria-label="Training status">
+          <div>
+            <span>CTL</span>
+            <strong id="ctl">25.0</strong>
+          </div>
+          <div>
+            <span>ATL</span>
+            <strong id="atl">25.0</strong>
+          </div>
+          <div>
+            <span>TSB</span>
+            <strong id="tsb">0.0</strong>
+          </div>
+        </div>
+
+        <div class="decision-copy">
+          <p class="label" id="label">Fat Loss</p>
+          <p id="intent">Do steady Zone 2 work. This is the default waist-loss session.</p>
+        </div>
+
+        <div class="prescription">
+          <div>
+            <span>Workout</span>
+            <strong id="workout">45 min Zone 2 cardio</strong>
+          </div>
+          <div>
+            <span>Heart rate</span>
+            <strong id="hr-range">115-128</strong>
+          </div>
+          <div>
+            <span>Duration</span>
+            <strong id="duration-out">45 min</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="workspace">
+        <form class="panel input-panel" id="entry-form">
+          <div class="section-heading">
+            <p class="eyebrow">Input</p>
+            <h2>Add today load</h2>
+          </div>
+
+          <label>
+            Duration
+            <input id="duration" name="duration" type="number" min="1" step="1" inputmode="numeric" required />
+            <span>minutes</span>
+          </label>
+
+          <label>
+            Avg HR
+            <input id="avg-hr" name="avgHr" type="number" min="1" step="1" inputmode="numeric" required />
+            <span>bpm</span>
+          </label>
+
+          <label>
+            Training type
+            <select id="type" name="type">
+              <option value="bike">Bike</option>
+              <option value="run">Run</option>
+            </select>
+          </label>
+
+          <button type="submit">Save load</button>
+        </form>
+
+        <section class="panel history-panel" aria-labelledby="history-title">
+          <div class="section-heading">
+            <p class="eyebrow">History</p>
+            <h2 id="history-title">Last 7 entries</h2>
+          </div>
+
+          <p class="empty-history" id="empty-history">No training data yet. Default CTL and ATL are 25.</p>
+          <ol class="history-list" id="history-list"></ol>
+        </section>
+      </section>
+    </main>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
