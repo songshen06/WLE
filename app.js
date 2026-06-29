@@ -1,4 +1,10 @@
-import { buildTodayDecision, calculateTrainingLoad } from "./engine.js";
+import {
+  buildTodayDecision,
+  calculateNextFitness,
+  calculateTrainingLoad,
+  getLatestFitness,
+  migrateEntriesToRecursiveState,
+} from "./engine.js";
 
 const STORAGE_KEY = "waist-loss-engine.entries.v1";
 
@@ -25,13 +31,24 @@ const elements = {
 function readEntries() {
   try {
     const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) {
+      console.warn("[WLE state:read] localStorage value is not an array. Resetting to empty state.");
+      return [];
+    }
+
+    return parsed;
   } catch {
+    console.warn("[WLE state:read] localStorage parse failed. Resetting to empty state.");
     return [];
   }
 }
 
 function writeEntries(entries) {
+  console.log("[WLE state:write]", {
+    storageKey: STORAGE_KEY,
+    entryCount: entries.length,
+    latestEntry: entries.at(-1) || null,
+  });
   localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
 }
 
@@ -49,6 +66,15 @@ function formatDate(isoDate) {
 function renderToday(entries) {
   const decision = buildTodayDecision(entries);
   const recommendation = decision.recommendation;
+
+  console.log("[WLE state:decision]", {
+    entries: entries.length,
+    ctl: decision.ctl,
+    atl: decision.atl,
+    tsb: decision.tsb,
+    action: recommendation.action,
+    label: recommendation.label,
+  });
 
   elements.ctl.textContent = formatNumber(decision.ctl);
   elements.atl.textContent = formatNumber(decision.atl);
@@ -70,7 +96,9 @@ function renderHistory(entries) {
   elements.emptyHistory.hidden = recentEntries.length > 0;
 
   for (const entry of recentEntries) {
-    const load = calculateTrainingLoad(entry.duration, entry.avgHr);
+    const load = Number.isFinite(Number(entry.trainingLoad))
+      ? Number(entry.trainingLoad)
+      : calculateTrainingLoad(entry.duration, entry.avgHr);
     const item = document.createElement("li");
     item.className = "history-item";
     item.innerHTML = `
@@ -88,8 +116,32 @@ function renderHistory(entries) {
   }
 }
 
+function traceState(entries) {
+  console.table(
+    entries.map((entry, index) => ({
+      index,
+      date: entry.date,
+      type: entry.type,
+      duration: entry.duration,
+      avgHr: entry.avgHr,
+      dailyLoad: Number(entry.trainingLoad),
+      ctl: Number(entry.ctl),
+      atl: Number(entry.atl),
+      tsb: Number(entry.tsb),
+    })),
+  );
+}
+
 function render() {
-  const entries = readEntries();
+  let entries = readEntries();
+  const migration = migrateEntriesToRecursiveState(entries);
+
+  if (migration.changed) {
+    entries = migration.entries;
+    writeEntries(entries);
+  }
+
+  traceState(entries);
   renderToday(entries);
   renderHistory(entries);
 }
@@ -104,16 +156,41 @@ function handleSubmit(event) {
     return;
   }
 
-  const entries = readEntries();
-  entries.push({
+  let entries = readEntries();
+  const migration = migrateEntriesToRecursiveState(entries);
+
+  if (migration.changed) {
+    entries = migration.entries;
+  }
+
+  const previousFitness = getLatestFitness(entries);
+  const draftEntry = {
     id: crypto.randomUUID(),
     date: new Date().toISOString(),
     duration,
     avgHr,
     type: elements.type.value,
+  };
+  const nextFitness = calculateNextFitness(previousFitness, draftEntry);
+  const nextEntry = {
+    ...draftEntry,
+    trainingLoad: nextFitness.trainingLoad,
+    ctl: nextFitness.ctl,
+    atl: nextFitness.atl,
+    tsb: nextFitness.tsb,
+  };
+
+  console.log("[WLE state:append]", {
+    previousCtl: previousFitness.ctl,
+    previousAtl: previousFitness.atl,
+    previousTsb: previousFitness.tsb,
+    dailyLoad: nextEntry.trainingLoad,
+    ctl: nextEntry.ctl,
+    atl: nextEntry.atl,
+    tsb: nextEntry.tsb,
   });
 
-  writeEntries(entries);
+  writeEntries([...entries, nextEntry]);
   elements.form.reset();
   elements.type.value = "bike";
   render();

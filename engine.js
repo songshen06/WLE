@@ -18,20 +18,97 @@ export function calculateEma(previousValue, currentValue, periodDays) {
   return previousValue + alpha * (currentValue - previousValue);
 }
 
-export function calculateFitness(entries) {
-  let ctl = DEFAULT_FITNESS;
-  let atl = DEFAULT_FITNESS;
+export function getInitialFitness() {
+  return {
+    ctl: DEFAULT_FITNESS,
+    atl: DEFAULT_FITNESS,
+    tsb: 0,
+  };
+}
 
-  for (const entry of entries) {
-    const load = calculateTrainingLoad(entry.duration, entry.avgHr);
-    ctl = calculateEma(ctl, load, CTL_DAYS);
-    atl = calculateEma(atl, load, ATL_DAYS);
-  }
+export function calculateNextFitness(previousFitness, entry) {
+  const load = Number.isFinite(Number(entry.trainingLoad))
+    ? Number(entry.trainingLoad)
+    : calculateTrainingLoad(entry.duration, entry.avgHr);
+  const ctl = calculateEma(previousFitness.ctl, load, CTL_DAYS);
+  const atl = calculateEma(previousFitness.atl, load, ATL_DAYS);
 
   return {
+    trainingLoad: load,
     ctl,
     atl,
     tsb: ctl - atl,
+  };
+}
+
+export function getLatestFitness(entries) {
+  const latestEntry = entries.at(-1);
+
+  if (
+    latestEntry &&
+    Number.isFinite(Number(latestEntry.ctl)) &&
+    Number.isFinite(Number(latestEntry.atl)) &&
+    Number.isFinite(Number(latestEntry.tsb))
+  ) {
+    return {
+      ctl: Number(latestEntry.ctl),
+      atl: Number(latestEntry.atl),
+      tsb: Number(latestEntry.tsb),
+    };
+  }
+
+  return getInitialFitness();
+}
+
+export function migrateEntriesToRecursiveState(entries) {
+  let changed = false;
+  let previousFitness = getInitialFitness();
+
+  const migratedEntries = entries.map((entry, index) => {
+    const hasStoredState =
+      Number.isFinite(Number(entry.trainingLoad)) &&
+      Number.isFinite(Number(entry.ctl)) &&
+      Number.isFinite(Number(entry.atl)) &&
+      Number.isFinite(Number(entry.tsb));
+
+    if (hasStoredState) {
+      previousFitness = {
+        ctl: Number(entry.ctl),
+        atl: Number(entry.atl),
+        tsb: Number(entry.tsb),
+      };
+      return entry;
+    }
+
+    const nextFitness = calculateNextFitness(previousFitness, entry);
+    previousFitness = {
+      ctl: nextFitness.ctl,
+      atl: nextFitness.atl,
+      tsb: nextFitness.tsb,
+    };
+    changed = true;
+
+    console.log("[WLE state:migrate]", {
+      index,
+      date: entry.date,
+      dailyLoad: nextFitness.trainingLoad,
+      ctl: nextFitness.ctl,
+      atl: nextFitness.atl,
+      tsb: nextFitness.tsb,
+    });
+
+    return {
+      ...entry,
+      trainingLoad: nextFitness.trainingLoad,
+      ctl: nextFitness.ctl,
+      atl: nextFitness.atl,
+      tsb: nextFitness.tsb,
+    };
+  });
+
+  return {
+    entries: migratedEntries,
+    changed,
   };
 }
 
@@ -75,7 +152,7 @@ export function getRecommendation(tsb) {
 }
 
 export function buildTodayDecision(entries) {
-  const fitness = calculateFitness(entries);
+  const fitness = getLatestFitness(entries);
 
   return {
     ...fitness,
